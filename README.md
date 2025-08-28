@@ -63,11 +63,11 @@ default_search = "https://www.qwant.com/?q={}"
 search_suggestions = "https://search.brave.com/api/suggest?q={}" # alternatively you can also use Qwant: https://api.qwant.com/v3/suggest/?q={}&client=opensearch
 
 [[bangs]] # this scheme can be repeated multiple times
-category = "Entertainment"                           # currently unused, possible values: Entertainment, Multimedia, News, OnlineServices, Research, Shopping, Tech, Translatio,
+category = "Entertainment"                           # currently unused, possible values: Entertainment, Multimedia, News, OnlineServices, Research, Shopping, Tech, Translation
 domain = "http://127.0.0.1/bangs"
 relevance = 0                                        # currently unused
 short_name = "Bangs Page"                            # currently unused
-subcategory = "Fun stuff"                            # currenly unused
+subcategory = "Fun stuff"                            # currently unused
 trigger = "bang"
 url_template = "http://127.0.0.1/bangs?parameter={{{s}}}" # {{{s}}} gets replaced with the search term
 ```
