@@ -73,7 +73,7 @@ pub fn resolve(app_config: &AppConfig, query: &str) -> String {
 
     // Fastest path for most common case - single-word plain queries
     if bytes[0] != b'!' {
-        // Quick check for spaces without using contains()
+        // Quick check for spaces
         let mut has_space = false;
         for &b in bytes {
             if b == b' ' {
@@ -82,6 +82,7 @@ pub fn resolve(app_config: &AppConfig, query: &str) -> String {
             }
         }
 
+        // No spaces found, so there can't be any bang after the first word
         if !has_space {
             return app_config
                 .default_search
@@ -212,7 +213,7 @@ mod tests {
     async fn test_resolve_with_bang() {
         let config = AppConfig::default();
         if let Err(e) = update_bangs(&config).await {
-            error!("Failed to update bangs: {}", e);
+            panic!("Failed to update bangs: {}", e);
         };
 
         // Test with template that has {{{s}}}
@@ -238,10 +239,6 @@ mod tests {
     async fn test_resolve_without_bang() {
         let config = AppConfig::default();
 
-        if let Err(e) = update_bangs(&config).await {
-            error!("Failed to update bangs: {}", e);
-        };
-
         // Test with no bang
         let result = resolve(&config, "rust programming");
         assert_eq!(
@@ -264,7 +261,7 @@ mod tests {
         let config = AppConfig::default();
 
         if let Err(e) = update_bangs(&config).await {
-            error!("Failed to update bangs: {}", e);
+            panic!("Failed to update bangs: {}", e);
         };
 
         // Empty query
