@@ -1,13 +1,14 @@
 use crate::bang::Bang;
 use crate::cli::{Cli, SubCommand};
 use crate::update_bangs;
+use anyhow::{Result, bail};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::Write;
 use std::fs::read_to_string;
 use std::net::IpAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
@@ -164,11 +165,11 @@ impl From<Cli> for Config {
 }
 
 /// Reloads configuration from disk while preserving CLI options.
-pub async fn reload_config(app_state: &AppState) {
+pub async fn reload_config(app_state: &AppState) -> Result<()> {
     // Get new file config
     let file_config = get_file_config();
 
-    if let Some(config) = file_config {
+    if let Ok(config) = file_config {
         let mut config_clone = {
             let current_config = app_state.config.read();
             current_config.clone()
@@ -179,7 +180,7 @@ pub async fn reload_config(app_state: &AppState) {
         // Reload bang cache with the clone
         if let Err(e) = update_bangs(&config_clone).await {
             error!("Failed to update bang commands: {}", e);
-            return;
+            bail!("Failed to update bang commands: {}", e);
         }
 
         {
@@ -188,30 +189,44 @@ pub async fn reload_config(app_state: &AppState) {
         }
 
         info!("Configuration reloaded successfully");
+        Ok(())
     } else {
-        debug!("No configuration file found, nothing was changed.");
+        debug!("No valid configuration file found, nothing was changed.");
+        bail!(
+            "No valid configuration file found: {}",
+            file_config.err().unwrap()
+        )
     }
 }
 
-pub fn get_file_config() -> Option<FileConfig> {
-    let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let config_path = Path::new(&home_dir)
-        .join(".config")
-        .join("redirector")
-        .join("config.toml");
+pub fn get_file_config() -> Result<FileConfig> {
+    let config_path: PathBuf;
+    if let Ok(config_dir) = env::var("XDG_CONFIG_HOME")
+        && !config_dir.is_empty()
+    {
+        config_path = PathBuf::from(config_dir)
+            .join("redirector")
+            .join("config.toml");
+    } else {
+        let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        config_path = Path::new(&home_dir)
+            .join(".config")
+            .join("redirector")
+            .join("config.toml");
+    }
 
     // Attempt to load the file configuration if it exists.
     if config_path.exists() {
         match read_to_string(&config_path) {
             Ok(contents) => match toml::from_str::<FileConfig>(&contents) {
-                Ok(conf) => Some(conf),
+                Ok(conf) => Ok(conf),
                 Err(e) => {
                     error!(
                         "Failed to parse configuration file at {}: {}",
                         config_path.display(),
                         e
                     );
-                    None
+                    bail!("Failed to parse configuration file: {}", e)
                 }
             },
             Err(e) => {
@@ -220,12 +235,12 @@ pub fn get_file_config() -> Option<FileConfig> {
                     config_path.display(),
                     e
                 );
-                None
+                bail!("Failed to read configuration file: {}", e)
             }
         }
     } else {
         debug!("Configuration file not found at {}.", config_path.display());
-        None
+        bail!("Configuration file not found")
     }
 }
 

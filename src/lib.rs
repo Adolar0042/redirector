@@ -142,20 +142,18 @@ pub async fn periodic_update(app_config: AppConfig) {
 /// # Errors
 /// If it fails to update the bang cache.
 pub async fn update_bangs(app_config: &AppConfig) -> anyhow::Result<()> {
-    let cache_path = std::env::temp_dir().join("bang_cache.json");
+    let cache_path = std::env::temp_dir().join("bang-cache.json");
     let cache_age_limit = Duration::from_secs(24 * 60 * 60);
 
-    if let Ok(metadata) = std::fs::metadata(&cache_path) {
-        if let Ok(modified) = metadata.modified() {
-            if modified.elapsed()? < cache_age_limit {
-                if let Ok(contents) = std::fs::read_to_string(&cache_path) {
-                    let bang_entries: Vec<Bang> = serde_json::from_str(&contents)?;
-                    debug!("Bang cache is up to date.");
-                    update_cache(bang_entries, app_config);
-                    return Ok(());
-                }
-            }
-        }
+    if let Ok(metadata) = std::fs::metadata(&cache_path)
+        && let Ok(modified) = metadata.modified()
+        && modified.elapsed()? < cache_age_limit
+        && let Ok(contents) = std::fs::read_to_string(&cache_path)
+    {
+        let bang_entries: Vec<Bang> = serde_json::from_str(&contents)?;
+        debug!("Bang cache is up to date.");
+        update_cache(bang_entries, app_config);
+        return Ok(());
     }
 
     let response = reqwest::get(&app_config.bangs_url).await?.text().await?;

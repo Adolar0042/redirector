@@ -8,14 +8,21 @@ use clap_complete::generate;
 use heck::ToTitleCase;
 use redirector::cli::SubCommand::Completions;
 use redirector::cli::{Cli, SubCommand};
-use redirector::config::{AppState, append_file_config, get_file_config};
+use redirector::config::{AppState, append_file_config, get_file_config, reload_config};
 use redirector::{BANG_CACHE, periodic_update, resolve, update_bangs};
 use reqwest::Client;
 use serde::Deserialize;
 use std::fmt::Write;
+use std::process::{Command, Stdio, exit};
+use std::time::Duration;
 use std::{env, net::SocketAddr, time::Instant};
 use tokio::net::TcpListener;
-use tracing::{Level, debug, error, info};
+use tokio::time::sleep;
+use tracing::level_filters::LevelFilter;
+use tracing::{debug, error, info};
+use tracing_subscriber::layer::SubscriberExt as _;
+use tracing_subscriber::util::SubscriberInitExt as _;
+use tracing_subscriber::{EnvFilter, fmt, registry};
 
 #[derive(Debug, Deserialize)]
 struct SearchParams {
@@ -171,18 +178,52 @@ async fn add_bang(
     )
 }
 
+async fn reload(State(app_state): State<AppState>) -> impl IntoResponse {
+    let res = reload_config(&app_state).await;
+    match res {
+        Ok(_) => (StatusCode::OK, "Reloaded successfully! (•‿•)".into()),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to reload: {}", e),
+        ),
+    }
+}
+
+async fn restart() -> impl IntoResponse {
+    tokio::spawn(async {
+        // give the HTTP response a moment to go out
+        sleep(Duration::from_millis(50)).await;
+
+        // collect the current executable path and args
+        let exe = env::current_exe().expect("failed to get current exe");
+        let args: Vec<String> = env::args().skip(1).collect();
+        Command::new(exe)
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to spawn new process");
+        exit(0);
+    });
+
+    (
+        StatusCode::OK,
+        "Server is restarting shortly, see you soon ( ´ ▽ ` )ﾉ",
+    )
+}
+
 #[tokio::main]
 async fn main() {
     let cli_config = Cli::parse();
 
-    let log_level = match &cli_config.command {
-        Some(SubCommand::Serve { .. }) | None => Level::DEBUG,
-        _ => Level::INFO,
-    };
-
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_writer(std::io::stderr)
+    registry()
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::WARN.into())
+                .from_env_lossy(),
+        )
+        .with(fmt::layer().with_writer(std::io::stderr))
         .init();
 
     let file_config = get_file_config();
@@ -203,6 +244,8 @@ async fn main() {
                 .route("/opensearch.xml", get(opensearch))
                 .route("/suggest", get(suggestions_proxy))
                 .route("/add_bang", post(add_bang))
+                .route("/reload", get(reload))
+                .route("/restart", get(restart))
                 .with_state(app_state);
             let addr = SocketAddr::new(app_config.ip, app_config.port);
             let listener = match TcpListener::bind(addr).await {
