@@ -1,6 +1,7 @@
+use std::net::IpAddr;
+
 use clap::{Parser, Subcommand};
 use clap_complete::Shell;
-use std::net::IpAddr;
 
 /// Main CLI configuration.
 #[derive(Parser, Debug, Clone)]
@@ -13,7 +14,8 @@ pub struct Cli {
     #[arg(short, long)]
     pub bangs_url: Option<String>,
 
-    /// Default search engine URL template (use '{}' as placeholder for the query)
+    /// Default search engine URL template (use '{}' as placeholder for the
+    /// query)
     #[arg(short, long)]
     pub default_search: Option<String>,
 

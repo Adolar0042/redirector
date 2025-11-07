@@ -1,10 +1,9 @@
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use rand::Rng;
-use rand::prelude::IndexedRandom;
+use rand::Rng as _;
+use rand::prelude::IndexedRandom as _;
 use redirector::config::AppConfig;
 use redirector::{get_bang, resolve, update_bangs};
-use tracing::Level;
-use tracing::error;
+use tracing::{Level, error};
 
 fn generate_random_query() -> String {
     let bang_commands = [
@@ -46,7 +45,7 @@ fn generate_random_query() -> String {
         let num_words = rng.random_range(2..=5);
         let mut selected_words: Vec<&str> = words
             .choose_multiple(&mut rng, num_words)
-            .cloned()
+            .copied()
             .collect();
         // Insert bang into a random position.
         let insert_index = rng.random_range(0..=selected_words.len());
@@ -56,7 +55,7 @@ fn generate_random_query() -> String {
         let num_words = rng.random_range(2..=5);
         let selected_words: Vec<&str> = words
             .choose_multiple(&mut rng, num_words)
-            .cloned()
+            .copied()
             .collect();
         selected_words.join(" ")
     }
@@ -67,8 +66,8 @@ fn create_config() -> AppConfig {
     rt.block_on(async {
         let config = AppConfig::default();
         if let Err(e) = update_bangs(&config).await {
-            error!("Failed to update bangs: {}", e);
-        };
+            error!("Failed to update bangs: {e}");
+        }
         config
     })
 }
@@ -77,36 +76,33 @@ fn benchmark_resolve(c: &mut Criterion) {
     let config = create_config();
 
     c.bench_function("resolve plain query", |b| {
-        b.iter(|| resolve(&config, "just a regular search query"))
+        b.iter(|| resolve(&config, "just a regular search query"));
     });
     c.bench_function("resolve query with bang", |b| {
-        b.iter(|| resolve(&config, "!gh just a regular search query"))
+        b.iter(|| resolve(&config, "!gh just a regular search query"));
     });
     c.bench_function("resolve random generated query", |b| {
         b.iter_batched(
             generate_random_query,
             |query| resolve(&config, &query),
             BatchSize::SmallInput,
-        )
+        );
     });
 }
 
 fn benchmark_get_bang(c: &mut Criterion) {
-    let config = create_config();
-
     c.bench_function("get bang", |b| {
         b.iter_batched(
             generate_random_query,
             |query| {
-                let _ = get_bang(&*query);
+                let _ = get_bang(&query);
             },
             BatchSize::SmallInput,
-        )
+        );
     });
 }
 
 fn custom_criterion() -> Criterion {
-    // Increase the sample size to run the benchmarks more times.
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
         .with_writer(std::io::stderr)
