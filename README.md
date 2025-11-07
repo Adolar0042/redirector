@@ -1,5 +1,5 @@
 <h1 style="display: flex; align-items: center;">
-  <img src="icon.svg" alt="Icon" style="margin-right: 8px; width: 32px; height: 32px;">
+  <img src="res/icon.svg" alt="Icon" style="margin-right: 8px; width: 32px; height: 32px;">
   Redirector
 </h1>
 

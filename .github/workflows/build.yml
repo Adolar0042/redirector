@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --features vendored
+      - run: cargo check
 
   format:
     name: Format
@@ -42,7 +42,7 @@ jobs:
           # - os: windows-latest
           #   ext: ".exe"
     env:
-      BIN_NAME: warden
+      BIN_NAME: redirector
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
@@ -57,10 +57,10 @@ jobs:
             | .version' | head -n1)
           echo "CRATE_VERSION=$version" >> "$GITHUB_ENV"
 
-      - run: cargo test --workspace --features vendored
+      - run: cargo test --workspace
 
       - name: Build release binaries
-        run: cargo build --release --bin $BIN_NAME --features vendored
+        run: cargo build --release --bin $BIN_NAME
 
       - name: Upload release binary
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - run: rustup component add clippy
-      - run: cargo clippy --workspace --all-targets --features vendored -- -D warnings
-      - run: cargo doc --no-deps --workspace --document-private-items --features vendored
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo doc --no-deps --workspace --document-private-items
         env:
           RUSTDOCFLAGS: -D warnings
