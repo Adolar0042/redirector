@@ -7,6 +7,8 @@ A simple tool to redirect web searches using DuckDuckGo bangs.
 
 Redirector is a lightweight web server and command line utility written in Rust that lets you quickly redirect your search queries based on DDG bang syntax.
 
+Best-effort mirrors of this repository are maintained at [codeberg.org](https://codeberg.org/adolar0042/redirector) and [git.gay](https://git.gay/adolar0042/redirector). No guarantees are provided about their freshness or availability.
+
 ## Features
 
 - **DDG Bang Support:** Automatically detects and handles search queries using DuckDuckGo bangs (e.g., `!g` for Google, `!w` for Wikipedia).
