@@ -30,6 +30,14 @@ struct SearchParams {
     query: Option<String>,
 }
 
+const FAVICON: &[u8] = include_bytes!("../res/icon64.png");
+
+async fn favicon() -> impl IntoResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    (StatusCode::OK, headers, FAVICON)
+}
+
 /// Handler function that extracts the `q` parameter and redirects accordingly
 async fn handler(
     Query(params): Query<SearchParams>,
@@ -41,7 +49,7 @@ async fn handler(
             let start = Instant::now();
             let redirect_url = resolve(&app_state.get_config(), &query);
             debug!("Request completed in {:?}", start.elapsed());
-            info!("Redirecting '{}' to '{}'.", query, redirect_url);
+            info!("Redirecting '{query}' to '{redirect_url}'.");
             Redirect::to(&redirect_url)
         },
     )
@@ -91,7 +99,7 @@ async fn opensearch(State(app_state): State<AppState>) -> impl IntoResponse {
   <ShortName>{}</ShortName>
   <Description>{}</Description>
   <InputEncoding>UTF-8</InputEncoding>
-  <Image height="64" width="64">data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAADsOAAA7DgHMtqGDAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABA9JREFUeJztm8trVVcUxn831WAoqB2pra9kVCWKOC21tA4sIoivkZFSHxEUpDP9AzootEXpRBpfYAoFHwMFHThRYlBBdKBodaBttEnsJPFRjd5SPwfrRBNzc88+r72veD8I5N691jprfdlnr7XX3ilJ4n1GQ2gHQqNOQGgHQqNOQGgHQqNOQGgHQiMkAZ8AR4EzwJcZbU0CPgd2AieA+8C/wO44xVKgQqgFuApMiT4PAouBvxLY+AhYAawEvgY+jL4XUIp+fzziGZUhKcTPIY3FAUfdBkk/SxqqYONt/BlnL0TwsyWVKzhbljTTQX+1Q+CS9FLS8Th7IdaAdmBihe8nAlsd9C8Bz4CXMXIl4GKcMd8ENAKbq4xvjmSqoQ8jsRQjBzVIwBpgWpXx6cAqBzsXgBcxMk+Ay3GGfBOw3UFmm4PMj8CEGJnTQDnOkE8CFgKfOcgtAVqrjLcAy4gn4KSLUz4JaE8guyVmbOQ68T823cWbhfEZcMrpSZ5SX5OkQcf0JUkDkU4lW72RzAtJTyQdkTRL0npJT6OxH1x980XANwmCH0bbOLbuSron6XtJzW+NzZC0UlYsOfnmqxTuxu39H4ku4IsCfBkFHwTMB26k0FOkeytfd0bDxyL4bUq9ErAxT0cqPqTgGdAI9GAFTho8AObgkM/ToqgZMB/4iWzBE+n2YIXPvBz8GoM8Z0ATsA7L90kXPFd0A/uwRspQHgbzIGABFnQbMDWzR254CPwGdADXsxhKS0Aj1olpB5bitjMrClcwIjpJMSuSEjAb27NvovquLgT+AfYDv2I9QTc4VkwtsjZWpU5OraEs6aDGVompK8GvgOP4e7/zwiMsG/VVE3JJgzt594IH6wbviRNyIeBRdl+CYXKcgMsr8DFwk7j+eu1hAFgLnK0m5DID+oBFwAHgv+x+FY4y5utiYoKH5GlwJpb7t5CtxC0C/Vga7AD+dlVKWwh9ACwHdlAbhdAvwO+kmKF5lMKt2IzYgJ3X+cAgVvl1kK7X8Bp5boYmYYtOO3ZSWwS6sM3QMeB5HgaL6gd8ijUz2oAZGW31YxufgxTQHar1hkg/MJd3sCEyjDL210uLTgoMHvw0RedhhVRSKNK9na87o+GjKfoH1slJii4KDh78HY3t86STGL4ORpqwktp1VzmAXaLKJdVVg68ZMESyxbATD8GD31tiC4BrjrKtZKzwXOHzePw6cN5B7hyeggf/N0T25iSTG3xflGwE7jF+R7kfOwrz1nfwPQPK2J59POzHc9MlxFXZWcAdxt4VLGP3f3p9OhPiouR9KqfEw3gOHsJdlm7GOjnDDZSHWN+xx7cjoQgAuyK/Cwv+O2wB9I6QBNQE6v8xEtqB0KgTENqB0KgTENqB0HjvCXgFiecDVd5zzR0AAAAASUVORK5CYII=</Image>
+  <Image height="64" width="64" type="image/png">/favicon.ico</Image>
   <Url type="text/html" method="GET" template="http://{}:{}/?q={{searchTerms}}" />
   <Url type="application/x-suggestions+json" method="GET" template="http://{}:{}/suggest?q={{searchTerms}}" />
 </OpenSearchDescription>"#,
@@ -131,10 +139,10 @@ async fn suggestions_proxy(
                 if let Ok(json) = response.json::<serde_json::Value>().await {
                     return (StatusCode::OK, headers, Json(json));
                 }
-            }
+            },
             Err(e) => {
-                error!("Failed to fetch suggestions from Brave API: {}", e);
-            }
+                error!("Failed to fetch suggestions from search suggestion API: {e}");
+            },
         }
     }
 
@@ -181,11 +189,13 @@ async fn add_bang(
 async fn reload(State(app_state): State<AppState>) -> impl IntoResponse {
     let res = reload_config(&app_state).await;
     match res {
-        Ok(_) => (StatusCode::OK, "Reloaded successfully! (•‿•)".into()),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to reload: {}", e),
-        ),
+        Ok(()) => (StatusCode::OK, "Reloaded successfully! (•‿•)".into()),
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to reload: {e}"),
+            )
+        },
     }
 }
 
@@ -242,6 +252,7 @@ async fn main() {
                 .route("/", get(handler))
                 .route("/bangs", get(list_bangs))
                 .route("/opensearch.xml", get(opensearch))
+                .route("/favicon.ico", get(favicon))
                 .route("/suggest", get(suggestions_proxy))
                 .route("/add_bang", post(add_bang))
                 .route("/reload", get(reload))
@@ -251,19 +262,19 @@ async fn main() {
             let listener = match TcpListener::bind(addr).await {
                 Ok(listener) => listener,
                 Err(e) => {
-                    error!("Failed to bind to address '{}': {}", addr, e);
+                    error!("Failed to bind to address '{addr}': {e}");
                     return;
-                }
+                },
             };
-            info!("Server running on '{}'", addr);
+            info!("Server running on '{addr}'");
             axum::serve(listener, app).await.unwrap();
-        }
+        },
         Some(SubCommand::Resolve { query }) => {
             if let Err(e) = update_bangs(&app_config).await {
-                error!("Failed to update bang commands: {}", e);
+                error!("Failed to update bang commands: {e}");
             }
             println!("{}", resolve(&app_config, &query));
-        }
+        },
         Some(Completions { shell }) => {
             generate(
                 shell,
@@ -271,6 +282,6 @@ async fn main() {
                 env!("CARGO_PKG_NAME"),
                 &mut std::io::stdout(),
             );
-        }
+        },
     }
 }
