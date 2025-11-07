@@ -1,3 +1,5 @@
+#![cfg_attr(doc, doc = include_str!("../README.md"))]
+
 use std::env;
 use std::fmt::Write as _;
 use std::net::SocketAddr;

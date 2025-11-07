@@ -1,3 +1,5 @@
+#![cfg_attr(doc, doc = include_str!("../README.md"))]
+
 pub mod bang;
 pub mod cli;
 pub mod config;

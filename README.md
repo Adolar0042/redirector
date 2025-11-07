@@ -76,4 +76,4 @@ url_template = "http://127.0.0.1/bangs?parameter={{{s}}}" # {{{s}}} gets replace
 
 ## License
 
-This project is licensed under the [GPLv3 License](LICENSE). See the LICENSE file for more information.
+This project is licensed under the [GPLv3 License](LICENSE.md). See the LICENSE file for more information.
