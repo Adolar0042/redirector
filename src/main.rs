@@ -1,23 +1,27 @@
-use axum::extract::State;
+use std::env;
+use std::fmt::Write as _;
+use std::net::SocketAddr;
+use std::process::{Command, Stdio, exit};
+use std::time::{Duration, Instant};
+
+use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
-use axum::response::{Html, IntoResponse};
-use axum::routing::post;
-use axum::{Json, Router, extract::Query, response::Redirect, routing::get};
-use clap::{CommandFactory, Parser};
+use axum::response::{Html, IntoResponse, Redirect};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use clap::{CommandFactory as _, Parser as _};
 use clap_complete::generate;
-use heck::ToTitleCase;
+use heck::ToTitleCase as _;
 use redirector::cli::SubCommand::Completions;
 use redirector::cli::{Cli, SubCommand};
 use redirector::config::{AppState, append_file_config, get_file_config, reload_config};
 use redirector::{BANG_CACHE, periodic_update, resolve, update_bangs};
 use reqwest::Client;
 use serde::Deserialize;
-use std::fmt::Write;
-use std::process::{Command, Stdio, exit};
-use std::time::Duration;
-use std::{env, net::SocketAddr, time::Instant};
 use tokio::net::TcpListener;
 use tokio::time::sleep;
+use tower_http::compression::CompressionLayer;
+use tower_http::trace::TraceLayer;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info};
 use tracing_subscriber::layer::SubscriberExt as _;
@@ -58,9 +62,14 @@ async fn handler(
 async fn list_bangs(State(app_state): State<AppState>) -> Html<String> {
     let pkg_name = env!("CARGO_PKG_NAME").to_title_case();
     let mut html = String::from(
-        "<style>:root { background: #181818; color: #ffffff; font-family: monospace; } table { border-collapse: collapse; width: 100vw; } table th { text-align: left; padding: 1rem 0; font-size: 1.25rem; width: 100vw; } table tr { border-bottom: #ffffff10 solid 2px; } table tr:nth-child(2n) { background: #161616; } table tr:nth-child(2n+1) { background: #181818; }</style><html>",
+        "<style>:root { background: #181818; color: #ffffff; font-family: monospace; } table { \
+         border-collapse: collapse; width: auto; } table th { text-align: left; padding: 1rem 0; \
+         font-size: 1.25rem; width: auto; } table tr { border-bottom: #ffffff10 solid 2px; } \
+         table tr:nth-child(2n) { background: #161616; } table tr:nth-child(2n+1) { background: \
+         #181818; } table td, table th { padding: 0px 8px; } table td:nth-of-type(2) { word-wrap: \
+         anywhere; }</style><html>",
     );
-    html += format!(r#"<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="search" type="application/opensearchdescription+xml" title="{pkg_name}" href="/opensearch.xml"/><title>Bang Commands</title></head><body><h1>Bang Commands</h1>"#).as_str();
+    html += format!(r#"<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="search" type="application/opensearchdescription+xml" title="{pkg_name}" href="/opensearch.xml"/><link rel="icon" type="image/png" href="/favicon.ico"/><title>Bang Commands</title></head><body><h1>Bang Commands</h1>"#).as_str();
 
     if let Some(bangs) = &app_state.get_config().bangs {
         html.push_str("<h2>Configured Bangs</h2><table><th>Abbr.</th><th>Trigger</th><th>URL</th>");
@@ -257,6 +266,8 @@ async fn main() {
                 .route("/add_bang", post(add_bang))
                 .route("/reload", get(reload))
                 .route("/restart", get(restart))
+                .layer(TraceLayer::new_for_http())
+                .layer(CompressionLayer::new())
                 .with_state(app_state);
             let addr = SocketAddr::new(app_config.ip, app_config.port);
             let listener = match TcpListener::bind(addr).await {
