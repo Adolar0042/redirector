@@ -2,24 +2,26 @@ pub mod bang;
 pub mod cli;
 pub mod config;
 
-use crate::bang::Bang;
-use crate::config::AppConfig;
-use memchr::memchr;
-use parking_lot::RwLock;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
+
+use memchr::memchr;
+use parking_lot::RwLock;
 use tokio::time::interval;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
+
+use crate::bang::Bang;
+use crate::config::AppConfig;
 
 pub static BANG_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 static LAST_UPDATE: LazyLock<RwLock<Instant>> = LazyLock::new(|| RwLock::new(Instant::now()));
 
 /// Get the bang command from the query.
-/// this is the first '!' that is not preceded by a non-space character and followed by a space.
-#[inline]
+/// this is the first '!' that is not preceded by a non-space character and
+/// followed by a space.
 #[must_use]
 pub fn get_bang(query: &str) -> Option<&str> {
     let bytes = query.as_bytes();
@@ -61,8 +63,6 @@ pub fn get_bang(query: &str) -> Option<&str> {
     None
 }
 
-#[allow(clippy::inline_always)]
-#[inline(always)]
 #[must_use]
 pub fn resolve(app_config: &AppConfig, query: &str) -> String {
     if query.is_empty() {
@@ -128,11 +128,32 @@ pub fn resolve(app_config: &AppConfig, query: &str) -> String {
 }
 
 pub async fn periodic_update(app_config: AppConfig) {
-    let mut interval = interval(Duration::from_secs(24 * 60 * 60)); // 24 hours
+    const NORMAL_INTERVAL_SECS: u64 = 12 * 60 * 60;
+    let mut update_interval = interval(Duration::from_secs(NORMAL_INTERVAL_SECS));
+    let mut backoff_minutes: u8 = 0;
+
+    #[expect(
+        clippy::infinite_loop,
+        reason = "This is intended to run indefinitely in the background"
+    )]
     loop {
-        interval.tick().await;
-        if let Err(e) = update_bangs(&app_config).await {
-            error!("Failed to update bang commands: {}", e);
+        update_interval.tick().await;
+
+        match update_bangs(&app_config).await {
+            Ok(()) => {
+                info!("Updated bang commands successfully");
+                if backoff_minutes != 0 {
+                    backoff_minutes = 0;
+                    update_interval = interval(Duration::from_secs(NORMAL_INTERVAL_SECS));
+                }
+            },
+            Err(e) => {
+                error!("Failed to update bang commands: {e}");
+                backoff_minutes = (backoff_minutes + 1).min(30);
+                update_interval = interval(Duration::from_mins(u64::from(backoff_minutes)));
+                // first tick is always immediately
+                update_interval.tick().await;
+            },
         }
     }
 }
@@ -211,8 +232,8 @@ mod tests {
     async fn test_resolve_with_bang() {
         let config = AppConfig::default();
         if let Err(e) = update_bangs(&config).await {
-            panic!("Failed to update bangs: {}", e);
-        };
+            panic!("Failed to update bangs: {e}");
+        }
 
         // Test with template that has {{{s}}}
         let result = resolve(&config, "!g rust programming");
@@ -259,8 +280,8 @@ mod tests {
         let config = AppConfig::default();
 
         if let Err(e) = update_bangs(&config).await {
-            panic!("Failed to update bangs: {}", e);
-        };
+            panic!("Failed to update bangs: {e}");
+        }
 
         // Empty query
         let result = resolve(&config, "");
