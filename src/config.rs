@@ -113,7 +113,7 @@ impl FileConfig {
             ip: config
                 .ip
                 .or(self.ip)
-                .unwrap_or_else(|| IpAddr::from([0, 0, 0, 0])),
+                .unwrap_or_else(|| IpAddr::from([127, 0, 0, 1])),
             bangs_url: config
                 .bangs_url
                 .or(self.bangs_url)
@@ -135,7 +135,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             port: 3000,
-            ip: IpAddr::from([0, 0, 0, 0]),
+            ip: IpAddr::from([127, 0, 0, 1]),
             bangs_url: "https://duckduckgo.com/bang.js".to_string(),
             default_search: DEFAULT_SEARCH.to_string(),
             search_suggestions: DEFAULT_SEARCH_SUGGESTIONS.to_string(),
