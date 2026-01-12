@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use clap_complete::Shell;
 
 /// Main CLI configuration.
@@ -22,6 +22,10 @@ pub struct Cli {
     /// Search suggestions URL template (use '{}' as placeholder for the query)
     #[arg(short, long)]
     pub search_suggestions: Option<String>,
+
+    /// Increase logging verbosity
+    #[clap(short, long, action = ArgAction::Count, global = true)]
+    pub verbose: u8,
 }
 
 #[derive(Subcommand, Debug, Clone)]

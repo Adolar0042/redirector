@@ -238,10 +238,17 @@ async fn restart() -> impl IntoResponse {
 async fn main() {
     let cli_config = Cli::parse();
 
+    let level = match cli_config.verbose {
+        0 => LevelFilter::WARN,
+        1 => LevelFilter::INFO,
+        2 => LevelFilter::DEBUG,
+        _ => LevelFilter::TRACE,
+    };
+
     registry()
         .with(
             EnvFilter::builder()
-                .with_default_directive(LevelFilter::WARN.into())
+                .with_default_directive(level.into())
                 .from_env_lossy(),
         )
         .with(fmt::layer().with_writer(std::io::stderr))
