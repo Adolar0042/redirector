@@ -279,7 +279,10 @@ async fn main() {
                     return;
                 },
             };
-            info!("Server running on '{addr}'");
+            info!(
+                "Server running on '{}'",
+                listener.local_addr().unwrap_or(addr)
+            );
             axum::serve(listener, app).await.unwrap();
         },
         Some(SubCommand::Resolve { query }) => {
